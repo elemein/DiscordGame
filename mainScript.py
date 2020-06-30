@@ -1,5 +1,6 @@
 import os # idk what this does
 import asyncio
+import random
 import sqlite3 # IMPORT SQL
 import discord #import discord tools
 from dotenv import load_dotenv # load .env loader for environment variables
@@ -86,8 +87,8 @@ async def challenge(message):
             battleGround = message.channel.id
 
             cursor.execute(
-                f"""INSERT INTO BattleInfo (p1UID, p2UID, p1HP, p2HP, p1MP, p2MP, p1ATK, p2ATK, p1SPD, p2SPD, p1Action, p2Action, rndCounter, goingNext, battleGround)
-                                       VALUES ('{p1Stats[0]}', '{p2Stats[0]}', {p1Stats[1]}, {p2Stats[1]}, 0, 0,{p1Stats[2]}, {p2Stats[2]}, {p1Stats[3]}, {p2Stats[3]},'None','None',1,'None', '{battleGround}');""")
+                f"""INSERT INTO BattleInfo (p1UID, p2UID, p1HP, p2HP, p1MP, p2MP, p1ATK, p2ATK, p1SPD, p2SPD, p1Action, p2Action, rndCounter, battleGround)
+                                       VALUES ('{p1Stats[0]}', '{p2Stats[0]}', {p1Stats[1]}, {p2Stats[1]}, 0, 0,{p1Stats[2]}, {p2Stats[2]}, {p1Stats[3]}, {p2Stats[3]},'None','None',1,'{battleGround}');""")
             connection.commit()
 
             await roundStart(message)
@@ -192,10 +193,89 @@ async def chooseAttack(message):
         await message.channel.send('Please choose an ability between 1-4.')
         return
 
-    cursor.execute(f"""SELECT p1UID, p2UID FROM BattleInfo WHERE p1UID='{message.author.id}' OR p2UID='{message.author.id}'; """)
-    letsSee = cursor.fetchone()
-    print(letsSee)
+    cursor.execute(f"""SELECT p1UID, p1Action, p2UID, p2Action, battleGround FROM BattleInfo WHERE p1UID='{message.author.id}' OR p2UID='{message.author.id}'; """)
+    actionState = cursor.fetchone()
 
+    if ((message.author.id == int(actionState[0])) and (actionState[1] != 'None')) or ((message.author.id == int(actionState[2])) and (actionState[3] != 'None')) :
+        await message.channel.send('You have already locked in an ability.')
+        return
+
+    # Determine which player is choosing.
+    player = 0
+    if (message.author.id == int(actionState[0])):
+        player = 1
+    elif (message.author.id == int(actionState[2])):
+        player = 2
+
+    cursor.execute(f"""SELECT Action{abilityChoice} FROM UserInfo WHERE UID='{message.author.id}'; """)
+    chosenAbility = cursor.fetchone()[0]
+    cursor.execute(f"""UPDATE BattleInfo SET p{player}Action = '{chosenAbility}' WHERE p{player}UID='{message.author.id}'; """)
+    connection.commit()
+
+    channel = client.get_channel(int(actionState[4]))
+    await channel.send(f'Player {player} is ready.')
+
+    cursor.execute(f"""SELECT p1Action, p2Action FROM BattleInfo WHERE p{player}UID = '{message.author.id}'; """)
+    abilityCheck = cursor.fetchone()
+
+    if ((abilityCheck[0] != 'None') and (abilityCheck[1] != 'None')):
+        await resolveRound(message)
+
+    return
+
+async def resolveRound(message):
+
+    cursor.execute(f'''SELECT * FROM BattleInfo WHERE (p1UID = {message.author.id}) OR (p2UID = {message.author.id}); ''')
+    initialState = cursor.fetchone()
+
+    cursor.execute(f'''SELECT abilityName, priority, latent FROM AbilityInfo WHERE abilityName = '{initialState[10]}';''')
+    p1ActionInfo = cursor.fetchone()
+    print(p1ActionInfo)
+
+    cursor.execute(f'''SELECT abilityName, priority, latent FROM AbilityInfo WHERE abilityName = '{initialState[11]}';''')
+    p2ActionInfo = cursor.fetchone()
+    print(p2ActionInfo)
+
+    # initialState[x] =
+    # 0 = p1UID, 1 = p2UID, 2 = p1HP, 3 = p2HP, 4 = p1MP, 5 = p2MP, 6 = p1ATK, 7 = p2ATK, 8 = p1SPD, 9 = p2SPD, 10 = p1Action, 11 = p2Action
+    # 12 = rndCounter, 13 = battleGround
+
+    # Determine turn preference by speed.
+
+    if (initialState[8] > initialState[9]):
+        preference = p1ActionInfo
+    elif (initialState[8] < initialState[9]):
+        preference = p2ActionInfo
+    else:
+        preference = random.randint(1,2)
+        if preference == 1:
+            preference = p1ActionInfo
+        else:
+            preference = p2ActionInfo
+    print(preference)
+
+    # Determine turn order taking into account priority and latent.
+
+    if (p1ActionInfo[1] == 1 and p2ActionInfo[1] != 1):
+        goingFirst = p1ActionInfo
+        goingLast = p2ActionInfo
+    elif (p1ActionInfo[1] != 1 and p2ActionInfo[1] == 1):
+        goingFirst = p2ActionInfo
+        goingLast = p1ActionInfo
+    elif (p1ActionInfo[2] != 1 and p2ActionInfo[2] == 1):
+        goingFirst = p1ActionInfo
+        goingLast = p2ActionInfo
+    elif (p1ActionInfo[2] == 1 and p2ActionInfo[2] != 1):
+        goingFirst = p2ActionInfo
+        goingLast = p1ActionInfo
+    else:
+        goingFirst = preference
+        if goingFirst == p1ActionInfo:
+            goingLast = p2ActionInfo
+        else:
+            goingLast = p1ActionInfo
+
+    # Lets resolve this round!
     return
 
 # This function awaits a message, and if the message starts with !d, it proceeds to act on the command.
@@ -203,22 +283,19 @@ async def chooseAttack(message):
 async def on_message(message: object):
 
     if message.content.startswith('!d'):
-        command = (message.content[3:])
+        command = (message.content.split(' ')[1])
 
-        if (command == 'sayhi'):
-            await sayhi(message)
-        elif (command == 'registerMe'):
-            await registerMe(message)
-        elif (command == 'showInfo'):
-            await showInfo(message)
-        elif (command[0:9] == 'challenge'):
-            await challenge(message)
-        elif (command == 'leaveFight'):
-            await leaveFight(message)
-        elif (command[0:7] == 'replace'):
-            await replace(message)
-        elif (command[0:6] == 'choose'):
-            await chooseAttack(message)
+        command_list = {
+            "sayhi" : sayhi,
+            "registerMe" : registerMe,
+            "showInfo" : showInfo,
+            "challenge" : challenge,
+            "leaveFight" : leaveFight,
+            "replace" : replace,
+            "chooseAttack" : chooseAttack
+        }
+
+        await command_list.get(command)(message)
 
 @client.event
 async def on_ready():
