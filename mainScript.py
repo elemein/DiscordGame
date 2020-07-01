@@ -172,8 +172,6 @@ async def roundStart(message):
     user = client.get_user(int(IDs[1]))
     await user.send(f'What will you do this round? \n Your stats are: \n **HP:** {battleInfo[4]} |  **MP:** {battleInfo[5]} \n **ATK:** {battleInfo[6]} | **SPD:** {battleInfo[7]}'
                     f'\nYour moves are: \n1. {p2Moves[0]}\n2. {p2Moves[1]}\n3. {p2Moves[2]}\n4. {p2Moves[3]}')
-    #
-
 
     return
 
