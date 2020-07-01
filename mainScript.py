@@ -10,8 +10,13 @@ connection = sqlite3.connect("myTable.db")
 cursor = connection.cursor()
 client = discord.Client() # connect the bot to discord
 
+
 async def sayhi(message): # Say Hi Command.
     await message.channel.send('Hi')
+    return
+
+async def invalid_command(message): # Say Hi Command.
+    await message.channel.send('Invalid command.')
     return
 
 async def registerMe(message):
@@ -88,7 +93,7 @@ async def challenge(message):
 
             cursor.execute(
                 f"""INSERT INTO BattleInfo (p1UID, p2UID, p1HP, p2HP, p1MP, p2MP, p1ATK, p2ATK, p1SPD, p2SPD, p1Action, p2Action, rndCounter, battleGround)
-                                       VALUES ('{p1Stats[0]}', '{p2Stats[0]}', {p1Stats[1]}, {p2Stats[1]}, 0, 0,{p1Stats[2]}, {p2Stats[2]}, {p1Stats[3]}, {p2Stats[3]},'None','None',1,'{battleGround}');""")
+                                       VALUES ('{p1Stats[0]}', '{p2Stats[0]}', {p1Stats[1]}, {p2Stats[1]}, 1, 1,{p1Stats[2]}, {p2Stats[2]}, {p1Stats[3]}, {p2Stats[3]},'None','None',1,'{battleGround}');""")
             connection.commit()
 
             await roundStart(message)
@@ -132,12 +137,23 @@ async def roundStart(message):
     IDs = cursor.fetchone()
 
     # Increment MP.
-    cursor.execute(f"""SELECT p1MP, p2MP FROM BattleInfo WHERE (p1UID={IDs[0]}) OR (p2UID={IDs[0]}) ;""")
-    playerMPs = cursor.fetchone()
-    cursor.execute(f"""UPDATE BattleInfo SET p1MP = {playerMPs[0]+1} WHERE (p1UID={IDs[0]}) OR (p2UID={IDs[0]}) ;""")
-    connection.commit()
-    cursor.execute(f"""UPDATE BattleInfo SET p2MP = {playerMPs[1]+1} WHERE (p1UID={IDs[0]}) OR (p2UID={IDs[0]}) ;""")
-    connection.commit()
+    #cursor.execute(f"""SELECT p1MP, p2MP, rndCounter, p1Action, p2Action FROM BattleInfo WHERE (p1UID={IDs[0]}) OR (p2UID={IDs[0]}) ;""")
+    #resetOrIncrement= cursor.fetchone()
+    #cursor.execute(f"""UPDATE BattleInfo SET p1MP = {resetOrIncrement[0]+1} WHERE (p1UID={IDs[0]}) OR (p2UID={IDs[0]}) ;""")
+    #connection.commit()
+    #cursor.execute(f"""UPDATE BattleInfo SET p2MP = {resetOrIncrement[1]+1} WHERE (p1UID={IDs[0]}) OR (p2UID={IDs[0]}) ;""")
+    #connection.commit()
+
+    # Increment rnd counter
+    #cursor.execute(f"""UPDATE BattleInfo SET rndCounter = {resetOrIncrement[2]+1} WHERE (p1UID={IDs[0]}) OR (p2UID={IDs[0]}) ;""")
+    #connection.commit()
+
+    # Reset player actions
+    #cursor.execute(f"""UPDATE BattleInfo SET p1Action = 'None' WHERE (p1UID={IDs[0]}) OR (p2UID={IDs[0]}) ;""")
+    #connection.commit()
+    #cursor.execute(f"""UPDATE BattleInfo SET p2Action = 'None' WHERE (p1UID={IDs[0]}) OR (p2UID={IDs[0]}) ;""")
+    #connection.commit()
+
 
     # Send fighters their stats and options.
 
@@ -193,7 +209,7 @@ async def chooseAttack(message):
         await message.channel.send('Please choose an ability between 1-4.')
         return
 
-    cursor.execute(f"""SELECT p1UID, p1Action, p2UID, p2Action, battleGround FROM BattleInfo WHERE p1UID='{message.author.id}' OR p2UID='{message.author.id}'; """)
+    cursor.execute(f"""SELECT p1UID, p1Action, p2UID, p2Action, battleGround, p1MP, p2MP FROM BattleInfo WHERE p1UID='{message.author.id}' OR p2UID='{message.author.id}'; """)
     actionState = cursor.fetchone()
 
     if ((message.author.id == int(actionState[0])) and (actionState[1] != 'None')) or ((message.author.id == int(actionState[2])) and (actionState[3] != 'None')) :
@@ -201,7 +217,6 @@ async def chooseAttack(message):
         return
 
     # Determine which player is choosing.
-    player = 0
     if (message.author.id == int(actionState[0])):
         player = 1
     elif (message.author.id == int(actionState[2])):
@@ -209,8 +224,25 @@ async def chooseAttack(message):
 
     cursor.execute(f"""SELECT Action{abilityChoice} FROM UserInfo WHERE UID='{message.author.id}'; """)
     chosenAbility = cursor.fetchone()[0]
-    cursor.execute(f"""UPDATE BattleInfo SET p{player}Action = '{chosenAbility}' WHERE p{player}UID='{message.author.id}'; """)
-    connection.commit()
+
+    cursor.execute(f"""SELECT * from AbilityInfo WHERE abilityName = '{chosenAbility}';""")
+    abiltiyInfo = cursor.fetchone()
+
+    abiltiyInfo[2]
+
+    if (player == 1) and (abiltiyInfo[2]>actionState[5]):
+        await message.channel.send('Insufficient mana for this action!')
+        return
+    elif (player == 2) and (abiltiyInfo[2] > actionState[6]):
+        await message.channel.send('Insufficient mana for this action!')
+        return
+
+    if player == 1:
+        cursor.execute(f"""UPDATE BattleInfo SET p1Action = '{chosenAbility}', p1MP = {actionState[5]-abiltiyInfo[2]} WHERE p1UID='{message.author.id}'; """)
+        connection.commit()
+    else:
+        cursor.execute(f"""UPDATE BattleInfo SET p2Action = '{chosenAbility}', p2MP = {actionState[6]-abiltiyInfo[2]} WHERE p2UID='{message.author.id}'; """)
+        connection.commit()
 
     channel = client.get_channel(int(actionState[4]))
     await channel.send(f'Player {player} is ready.')
@@ -230,11 +262,9 @@ async def resolveRound(message):
 
     cursor.execute(f'''SELECT abilityName, priority, latent FROM AbilityInfo WHERE abilityName = '{initialState[10]}';''')
     p1ActionInfo = cursor.fetchone()
-    print(p1ActionInfo)
 
     cursor.execute(f'''SELECT abilityName, priority, latent FROM AbilityInfo WHERE abilityName = '{initialState[11]}';''')
     p2ActionInfo = cursor.fetchone()
-    print(p2ActionInfo)
 
     # initialState[x] =
     # 0 = p1UID, 1 = p2UID, 2 = p1HP, 3 = p2HP, 4 = p1MP, 5 = p2MP, 6 = p1ATK, 7 = p2ATK, 8 = p1SPD, 9 = p2SPD, 10 = p1Action, 11 = p2Action
@@ -243,40 +273,172 @@ async def resolveRound(message):
     # Determine turn preference by speed.
 
     if (initialState[8] > initialState[9]):
-        preference = p1ActionInfo
+        goingFirst = (initialState[0],) + p1ActionInfo
+        goingLast = (initialState[1],) + p2ActionInfo
     elif (initialState[8] < initialState[9]):
-        preference = p2ActionInfo
+        goingFirst = (initialState[1],) + p2ActionInfo
+        goingLast = (initialState[0],) + p1ActionInfo
     else:
         preference = random.randint(1,2)
         if preference == 1:
-            preference = p1ActionInfo
+            goingFirst = (initialState[0],) + p1ActionInfo
+            goingLast = (initialState[1],) + p2ActionInfo
         else:
-            preference = p2ActionInfo
-    print(preference)
+            goingFirst = (initialState[1],) + p2ActionInfo
+            goingLast = (initialState[0],) + p1ActionInfo
 
     # Determine turn order taking into account priority and latent.
 
     if (p1ActionInfo[1] == 1 and p2ActionInfo[1] != 1):
-        goingFirst = p1ActionInfo
-        goingLast = p2ActionInfo
+        goingFirst = (initialState[0],) + p1ActionInfo
+        goingLast = (initialState[1],) + p2ActionInfo
     elif (p1ActionInfo[1] != 1 and p2ActionInfo[1] == 1):
-        goingFirst = p2ActionInfo
-        goingLast = p1ActionInfo
+        goingFirst = (initialState[1],) + p2ActionInfo
+        goingLast = (initialState[0],) + p1ActionInfo
     elif (p1ActionInfo[2] != 1 and p2ActionInfo[2] == 1):
-        goingFirst = p1ActionInfo
-        goingLast = p2ActionInfo
+        goingFirst = (initialState[0],) + p1ActionInfo
+        goingLast = (initialState[1],) + p2ActionInfo
     elif (p1ActionInfo[2] == 1 and p2ActionInfo[2] != 1):
-        goingFirst = p2ActionInfo
-        goingLast = p1ActionInfo
-    else:
-        goingFirst = preference
-        if goingFirst == p1ActionInfo:
-            goingLast = p2ActionInfo
-        else:
-            goingLast = p1ActionInfo
+        goingFirst = (initialState[1],) + p2ActionInfo
+        goingLast = (initialState[0],) + p1ActionInfo
 
     # Lets resolve this round!
+
+    # Create some stuff needed to help resolve the round.
+
+    ability_list = {
+        "Attack": attack,
+        "Heavy Attack": heavy_attack,
+#        "Defend": defend,
+#        "Dodge": dodge
+    }
+
+    currentGameState = 'first round'
+    resolvedGameState = 0
+    gameOver = 0
+    channel = client.get_channel(int(initialState[13]))
+
+    currentGameState = await ability_list.get(goingFirst[1])(initialState, currentGameState, goingFirst, goingLast, goingFirst[0])
+
+    # check HPs
+    if currentGameState[2] <= 0:
+        await channel.send(f'Fight over! P2 is the winner!')
+        gameOver = 1
+        await endGame(initialState[0], initialState[1])
+    elif currentGameState[3] <=0:
+        await channel.send(f'Fight over! P1 is the winner!')
+        gameOver = 1
+        await endGame(initialState[0], initialState[1])
+
+    if gameOver == 0:
+        resolvedGameState = await ability_list.get(goingLast[1])(initialState, currentGameState, goingFirst, goingLast, goingLast[0])
+
+        if resolvedGameState[2] <= 0:
+            await channel.send(f'Fight over! P2 is the winner!')
+            gameOver = 1
+            await endGame(initialState[0], initialState[1])
+        elif resolvedGameState[3] <=0:
+            await channel.send(f'Fight over! P1 is the winner!')
+            gameOver = 1
+            await endGame(initialState[0], initialState[1])
+
+    cursor.execute(f'''SELECT HP FROM UserInfo WHERE UID={initialState[0]}''')
+    p1maxHP = cursor.fetchone()
+
+    cursor.execute(f'''SELECT HP FROM UserInfo WHERE UID={initialState[1]}''')
+    p2maxHP = cursor.fetchone()
+
+    await channel.send(f'Round resolved.\nP1 HP: {(resolvedGameState[2]/p1maxHP[0])*100} %\nP2 HP: {(resolvedGameState[3]/p2maxHP[0])*100} %\nNew round.')
+
+    # commit round to database
+
+    cursor.execute(f'''UPDATE BattleInfo SET p1HP = {resolvedGameState[2]}, p2HP = {resolvedGameState[3]}, 
+                       p1MP = {resolvedGameState[4]+1}, p2MP = {resolvedGameState[5]+1}, 
+                       p1ATK = {resolvedGameState[6]}, p2ATK = {resolvedGameState[7]}, 
+                       p1SPD = {resolvedGameState[8]}, p2SPD = {resolvedGameState[9]}, 
+                       p1Action = 'None', p2Action = 'None', rndCounter = {resolvedGameState[12]+1} 
+                       WHERE (p1UID = {message.author.id}) OR (p2UID = {message.author.id});''')
+    connection.commit()
+
+    if gameOver == 0:
+        await roundStart(message)
+
     return
+
+async def endGame(p1UID, p2UID):
+
+    cursor.execute(f'''DELETE FROM BattleInfo WHERE (p1UID = {p1UID}) OR (p2UID = {p1UID});''')
+    connection.commit()
+
+    cursor.execute(f'''UPDATE UserInfo SET Challenging = 'None', inBattle = 0 
+                       WHERE UID = {p1UID};''')
+    connection.commit()
+
+    cursor.execute(f'''UPDATE UserInfo SET Challenging = 'None', inBattle = 0 
+                       WHERE UID = {p2UID};''')
+    connection.commit()
+
+    return
+
+async def attack(initialState, currentGameState, goingFirst, goingLast, attackCaller):
+
+# if this is the first action in the round
+
+    channel = client.get_channel(int(initialState[13]))
+
+    if currentGameState == 'first round':
+        # if attack caller is p1
+        if attackCaller == initialState[0]:
+            modifiedGameState = initialState[:3] + ((initialState[3] - initialState[6]),) + initialState[4:]
+            await channel.send(f'P1 attacked P2, dealing {initialState[6]} damage.')
+        # if attack caller is p2
+        else:
+            modifiedGameState = initialState[:2] + ((initialState[2] - initialState[7]),) + initialState[3:]
+            await channel.send(f'P2 attacked P1, dealing {initialState[7]} damage.')
+# if this is the second action in the round
+    else:
+        # if attack caller is p1
+        if attackCaller == initialState[0]:
+            modifiedGameState = currentGameState[:3] + ((currentGameState[3] - currentGameState[6]),) + currentGameState[4:]
+            await channel.send(f'P1 attacked P2, dealing {initialState[6]} damage.')
+        # if attack caller is p2
+        else:
+            modifiedGameState = currentGameState[:2] + ((currentGameState[2] - currentGameState[7]),) + currentGameState[3:]
+            await channel.send(f'P2 attacked P1, dealing {initialState[7]} damage.')
+
+    # perform attack on p2 HP if attack caller is p1
+
+    return modifiedGameState
+
+async def heavy_attack(initialState, currentGameState, goingFirst, goingLast, attackCaller):
+
+# if this is the first action in the round
+
+    channel = client.get_channel(int(initialState[13]))
+
+    if currentGameState == 'first round':
+        # if attack caller is p1
+        if attackCaller == initialState[0]:
+            modifiedGameState = initialState[:3] + ((initialState[3] - (initialState[6]*2)),) + initialState[4:]
+            await channel.send(f'P1 attacked P2, dealing {(initialState[6]*2)} damage.')
+        # if attack caller is p2
+        else:
+            modifiedGameState = initialState[:2] + ((initialState[2] - (initialState[7]*2)),) + initialState[3:]
+            await channel.send(f'P2 attacked P1, dealing {(initialState[7]*2)} damage.')
+# if this is the second action in the round
+    else:
+        # if attack caller is p1
+        if attackCaller == initialState[0]:
+            modifiedGameState = currentGameState[:3] + ((currentGameState[3] - (currentGameState[6]*2)),) + currentGameState[4:]
+            await channel.send(f'P1 attacked P2, dealing {(initialState[6]*2)} damage.')
+        # if attack caller is p2
+        else:
+            modifiedGameState = currentGameState[:2] + ((currentGameState[2] - (currentGameState[7]*2)),) + currentGameState[3:]
+            await channel.send(f'P2 attacked P1, dealing {(initialState[7]*2)} damage.')
+
+    # perform attack on p2 HP if attack caller is p1
+
+    return modifiedGameState
 
 # This function awaits a message, and if the message starts with !d, it proceeds to act on the command.
 @client.event
@@ -286,16 +448,16 @@ async def on_message(message: object):
         command = (message.content.split(' ')[1])
 
         command_list = {
-            "sayhi" : sayhi,
-            "registerMe" : registerMe,
-            "showInfo" : showInfo,
-            "challenge" : challenge,
-            "leaveFight" : leaveFight,
-            "replace" : replace,
-            "chooseAttack" : chooseAttack
+            "sayhi": sayhi,
+            "registerMe": registerMe,
+            "showInfo": showInfo,
+            "challenge": challenge,
+            "leaveFight": leaveFight,
+            "replace": replace,
+            "choose": chooseAttack
         }
 
-        await command_list.get(command)(message)
+        await command_list.get(command, invalid_command)(message)
 
 @client.event
 async def on_ready():
