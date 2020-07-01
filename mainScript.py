@@ -136,25 +136,6 @@ async def roundStart(message):
     cursor.execute(f"""SELECT p1UID, p2UID FROM BattleInfo WHERE (p1UID={message.author.id}) OR (p2UID={message.author.id}) ;""")
     IDs = cursor.fetchone()
 
-    # Increment MP.
-    #cursor.execute(f"""SELECT p1MP, p2MP, rndCounter, p1Action, p2Action FROM BattleInfo WHERE (p1UID={IDs[0]}) OR (p2UID={IDs[0]}) ;""")
-    #resetOrIncrement= cursor.fetchone()
-    #cursor.execute(f"""UPDATE BattleInfo SET p1MP = {resetOrIncrement[0]+1} WHERE (p1UID={IDs[0]}) OR (p2UID={IDs[0]}) ;""")
-    #connection.commit()
-    #cursor.execute(f"""UPDATE BattleInfo SET p2MP = {resetOrIncrement[1]+1} WHERE (p1UID={IDs[0]}) OR (p2UID={IDs[0]}) ;""")
-    #connection.commit()
-
-    # Increment rnd counter
-    #cursor.execute(f"""UPDATE BattleInfo SET rndCounter = {resetOrIncrement[2]+1} WHERE (p1UID={IDs[0]}) OR (p2UID={IDs[0]}) ;""")
-    #connection.commit()
-
-    # Reset player actions
-    #cursor.execute(f"""UPDATE BattleInfo SET p1Action = 'None' WHERE (p1UID={IDs[0]}) OR (p2UID={IDs[0]}) ;""")
-    #connection.commit()
-    #cursor.execute(f"""UPDATE BattleInfo SET p2Action = 'None' WHERE (p1UID={IDs[0]}) OR (p2UID={IDs[0]}) ;""")
-    #connection.commit()
-
-
     # Send fighters their stats and options.
 
     cursor.execute(f"""SELECT p1HP, p1MP, p1ATK, p1SPD, p2HP, p2MP, p2ATK, p2SPD FROM BattleInfo WHERE (p1UID={IDs[0]}) OR (p2UID={IDs[0]}) ;""")
@@ -308,7 +289,12 @@ async def resolveRound(message):
         "Attack": attack,
         "Heavy Attack": heavy_attack,
         "Defend": defend,
-#        "Dodge": dodge
+        "Dodge": dodge
+    }
+
+    defensive_abilities = {
+        "Defend": defend,
+        "Dodge": dodge
     }
 
     currentGameState = 'first round'
@@ -319,16 +305,16 @@ async def resolveRound(message):
     currentGameState = await ability_list.get(goingFirst[1])(initialState, currentGameState, goingFirst, goingLast, goingFirst[0])
 
     # check HPs
-    if currentGameState[2] <= 0:
+    if (currentGameState[2] <= 0) and (goingLast[1] not in defensive_abilities):
         await channel.send(f'Fight over! P2 is the winner!')
         gameOver = 1
         await endGame(initialState[0], initialState[1])
-    elif currentGameState[3] <=0:
+    elif (currentGameState[3] <=0) and (goingLast[1] not in defensive_abilities):
         await channel.send(f'Fight over! P1 is the winner!')
         gameOver = 1
         await endGame(initialState[0], initialState[1])
 
-    if gameOver == 0:
+    if (gameOver == 0) or (goingLast[1] in defensive_abilities):
         resolvedGameState = await ability_list.get(goingLast[1])(initialState, currentGameState, goingFirst, goingLast, goingLast[0])
 
         if resolvedGameState[2] <= 0:
@@ -417,23 +403,23 @@ async def heavy_attack(initialState, currentGameState, goingFirst, goingLast, at
         # if attack caller is p1
         if attackCaller == initialState[0]:
             modifiedGameState = initialState[:3] + ((initialState[3] - (initialState[6] * 2)),) + initialState[4:]
-            await channel.send(f'P1 attacked P2, dealing {(initialState[6] * 2)} damage.')
+            await channel.send(f'P1 heavy attacked P2, dealing {(initialState[6] * 2)} damage.')
         # if attack caller is p2
         else:
             modifiedGameState = initialState[:2] + ((initialState[2] - (initialState[7] * 2)),) + initialState[3:]
-            await channel.send(f'P2 attacked P1, dealing {(initialState[7] * 2)} damage.')
+            await channel.send(f'P2 heavy attacked P1, dealing {(initialState[7] * 2)} damage.')
     # if this is the second action in the round
     else:
         # if attack caller is p1
         if attackCaller == initialState[0]:
             modifiedGameState = currentGameState[:3] + (
             (currentGameState[3] - (currentGameState[6] * 2)),) + currentGameState[4:]
-            await channel.send(f'P1 attacked P2, dealing {(initialState[6] * 2)} damage.')
+            await channel.send(f'P1 heavy attacked P2, dealing {(initialState[6] * 2)} damage.')
         # if attack caller is p2
         else:
             modifiedGameState = currentGameState[:2] + (
             (currentGameState[2] - (currentGameState[7] * 2)),) + currentGameState[3:]
-            await channel.send(f'P2 attacked P1, dealing {(initialState[7] * 2)} damage.')
+            await channel.send(f'P2 heavy attacked P1, dealing {(initialState[7] * 2)} damage.')
 
     # perform attack on p2 HP if attack caller is p1
 
@@ -490,6 +476,60 @@ async def defend(initialState, currentGameState, goingFirst, goingLast, attackCa
                 await channel.send(f'P2 attempted to defend, but there was no attack to defend against!')
 
     return modifiedGameState
+
+async def dodge(initialState, currentGameState, goingFirst, goingLast, attackCaller):
+
+# if this is the first action in the round
+
+    channel = client.get_channel(int(initialState[13]))
+    modifiedGameState = initialState
+
+    if currentGameState == 'first round':
+        # if attack caller is p1
+        if attackCaller == initialState[0]:
+            await channel.send(f'P1 attempted to dodge, but there was no attack to dodge!')
+        # if attack caller is p2
+        else:
+            await channel.send(f'P2 attempted to dodge, but there was no attack to dodge!')
+# if this is the second action in the round
+    else:
+        # if attack caller is p1
+        if attackCaller == initialState[0]:
+            if (currentGameState[2]<initialState[2]):
+                # defend
+
+                dodgeChance = ((currentGameState[8] * 5) + 25)
+
+                dodge = random.randint(0,100)
+
+                if dodge < dodgeChance:
+                    await channel.send(f'P1 dodged P2\'s attack!')
+                    modifiedGameState = initialState
+                else:
+                    await channel.send(f'P1 failed to dodge P2\'s attack!')
+                    modifiedGameState = currentGameState
+
+            else:
+                await channel.send(f'P1 attempted to dodge, but there was no attack to dodge!')
+        # if attack caller is p2
+        else:
+            if (currentGameState[3] < initialState[3]):
+                # defend
+                dodgeChance = ((currentGameState[9] * 5) + 25)
+
+                dodge = random.randint(0, 100)
+
+                if dodge < dodgeChance:
+                    await channel.send(f'P2 dodged P1\'s attack!')
+                    modifiedGameState = initialState
+                else:
+                    await channel.send(f'P2 failed to dodge P1\'s attack!')
+                    modifiedGameState = currentGameState
+            else:
+                await channel.send(f'P2 attempted to dodge, but there was no attack to dodge!')
+
+    return modifiedGameState
+
 
 # This function awaits a message, and if the message starts with !d, it proceeds to act on the command.
 @client.event
