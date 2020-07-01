@@ -307,7 +307,7 @@ async def resolveRound(message):
     ability_list = {
         "Attack": attack,
         "Heavy Attack": heavy_attack,
-#        "Defend": defend,
+        "Defend": defend,
 #        "Dodge": dodge
     }
 
@@ -409,32 +409,85 @@ async def attack(initialState, currentGameState, goingFirst, goingLast, attackCa
     return modifiedGameState
 
 async def heavy_attack(initialState, currentGameState, goingFirst, goingLast, attackCaller):
-
-# if this is the first action in the round
+    # if this is the first action in the round
 
     channel = client.get_channel(int(initialState[13]))
 
     if currentGameState == 'first round':
         # if attack caller is p1
         if attackCaller == initialState[0]:
-            modifiedGameState = initialState[:3] + ((initialState[3] - (initialState[6]*2)),) + initialState[4:]
-            await channel.send(f'P1 attacked P2, dealing {(initialState[6]*2)} damage.')
+            modifiedGameState = initialState[:3] + ((initialState[3] - (initialState[6] * 2)),) + initialState[4:]
+            await channel.send(f'P1 attacked P2, dealing {(initialState[6] * 2)} damage.')
         # if attack caller is p2
         else:
-            modifiedGameState = initialState[:2] + ((initialState[2] - (initialState[7]*2)),) + initialState[3:]
-            await channel.send(f'P2 attacked P1, dealing {(initialState[7]*2)} damage.')
+            modifiedGameState = initialState[:2] + ((initialState[2] - (initialState[7] * 2)),) + initialState[3:]
+            await channel.send(f'P2 attacked P1, dealing {(initialState[7] * 2)} damage.')
+    # if this is the second action in the round
+    else:
+        # if attack caller is p1
+        if attackCaller == initialState[0]:
+            modifiedGameState = currentGameState[:3] + (
+            (currentGameState[3] - (currentGameState[6] * 2)),) + currentGameState[4:]
+            await channel.send(f'P1 attacked P2, dealing {(initialState[6] * 2)} damage.')
+        # if attack caller is p2
+        else:
+            modifiedGameState = currentGameState[:2] + (
+            (currentGameState[2] - (currentGameState[7] * 2)),) + currentGameState[3:]
+            await channel.send(f'P2 attacked P1, dealing {(initialState[7] * 2)} damage.')
+
+    # perform attack on p2 HP if attack caller is p1
+
+    return modifiedGameState
+
+async def defend(initialState, currentGameState, goingFirst, goingLast, attackCaller):
+
+# if this is the first action in the round
+
+    channel = client.get_channel(int(initialState[13]))
+    modifiedGameState = initialState
+
+    if currentGameState == 'first round':
+        # if attack caller is p1
+        if attackCaller == initialState[0]:
+            await channel.send(f'P1 attempted to defend, but there was no attack to defend against!')
+        # if attack caller is p2
+        else:
+            await channel.send(f'P2 attempted to defend, but there was no attack to defend against!')
 # if this is the second action in the round
     else:
         # if attack caller is p1
         if attackCaller == initialState[0]:
-            modifiedGameState = currentGameState[:3] + ((currentGameState[3] - (currentGameState[6]*2)),) + currentGameState[4:]
-            await channel.send(f'P1 attacked P2, dealing {(initialState[6]*2)} damage.')
+            if (currentGameState[2]<initialState[2]):
+                # defend
+
+                damageDealt = initialState[2] - currentGameState[2] # Find how much damage was dealt.
+                defendAmount = initialState[6]/2 # Find how much to defend by.
+                damageDealt = damageDealt-defendAmount # Lower damage dealt by defend amount.
+
+                if damageDealt <= 0:
+                    await channel.send(f'P1 defended against P2\'s attack, negating all damage.')
+                    modifiedGameState = initialState
+                elif damageDealt > 0:
+                    await channel.send(f'P1 defended against P2\'s attack, negating {defendAmount} damage.')
+                    modifiedGameState = initialState[:2] + ((initialState[2] - damageDealt),) + initialState[3:]
+            else:
+                await channel.send(f'P1 attempted to defend, but there was no attack to defend against!')
         # if attack caller is p2
         else:
-            modifiedGameState = currentGameState[:2] + ((currentGameState[2] - (currentGameState[7]*2)),) + currentGameState[3:]
-            await channel.send(f'P2 attacked P1, dealing {(initialState[7]*2)} damage.')
+            if (currentGameState[3] < initialState[3]):
+                # defend
+                damageDealt = initialState[3] - currentGameState[3]  # Find how much damage was dealt.
+                defendAmount = initialState[7] / 2  # Find how much to defend by.
+                damageDealt = damageDealt - defendAmount  # Lower damage dealt by defend amount.
 
-    # perform attack on p2 HP if attack caller is p1
+                if damageDealt <= 0:
+                    await channel.send(f'P2 defended against P1\'s attack, negating all damage.')
+                    modifiedGameState = initialState
+                elif damageDealt > 0:
+                    await channel.send(f'P2 defended against P1\'s attack, negating {defendAmount} damage.')
+                    modifiedGameState = initialState[:3] + ((initialState[3] - damageDealt),) + initialState[4:]
+            else:
+                await channel.send(f'P2 attempted to defend, but there was no attack to defend against!')
 
     return modifiedGameState
 
