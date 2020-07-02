@@ -289,7 +289,8 @@ async def resolveRound(message):
         "Attack": attack,
         "Heavy Attack": heavy_attack,
         "Defend": defend,
-        "Dodge": dodge
+        "Dodge": dodge,
+        "Snare" : snare
     }
 
     defensive_abilities = {
@@ -332,7 +333,7 @@ async def resolveRound(message):
     cursor.execute(f'''SELECT HP FROM UserInfo WHERE UID={initialState[1]}''')
     p2maxHP = cursor.fetchone()
 
-    await channel.send(f'Round resolved.\nP1 HP: {(resolvedGameState[2]/p1maxHP[0])*100} %\nP2 HP: {(resolvedGameState[3]/p2maxHP[0])*100} %\nNew round.')
+    await channel.send(f'Round resolved.\nP1 HP: {(resolvedGameState[2]/p1maxHP[0])*100} %\nP2 HP: {(resolvedGameState[3]/p2maxHP[0])*100} %')
 
     # commit round to database
 
@@ -527,6 +528,35 @@ async def dodge(initialState, currentGameState, goingFirst, goingLast, attackCal
                     modifiedGameState = currentGameState
             else:
                 await channel.send(f'P2 attempted to dodge, but there was no attack to dodge!')
+
+    return modifiedGameState
+
+async def snare(initialState, currentGameState, goingFirst, goingLast, attackCaller):
+
+# if this is the first action in the round
+
+    channel = client.get_channel(int(initialState[13]))
+    modifiedGameState = initialState
+
+    if currentGameState == 'first round':
+        # if attack caller is p1
+        if attackCaller == initialState[0]: # = P1
+            await channel.send(f'P1 snared P2, reducing their SPD to 2!')
+            modifiedGameState = initialState[:8] + (2,) + initialState[9:]
+        # if attack caller is p2
+        else:
+            await channel.send(f'P2 snared P1, reducing their SPD to 2!')
+            modifiedGameState = initialState[:7] + (2,) + initialState[8:]
+# if this is the second action in the round
+    else:
+        # if attack caller is p1
+        if attackCaller == initialState[0]:  # = P1
+            await channel.send(f'P1 snared P2, reducing their SPD to 2!')
+            modifiedGameState = currentGameState[:8] + (2,) + currentGameState[9:]
+        # if attack caller is p2
+        else:
+            await channel.send(f'P2 snared P1, reducing their SPD to 2!')
+            modifiedGameState = currentGameState[:7] + (2,) + currentGameState[8:]
 
     return modifiedGameState
 

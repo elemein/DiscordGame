@@ -1,3 +1,4 @@
 /.env
 /myTable.db
 /venv/
+/myTable.db-journal
