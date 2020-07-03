@@ -291,7 +291,9 @@ async def resolveRound(message):
         "Defend": defend,
         "Dodge": dodge,
         "Snare" : snare,
-        "Empower" : empower
+        "Empower" : empower,
+        "Heal" : heal,
+        "Quick Attack" : quick_attack
     }
 
     defensive_abilities = {
@@ -496,6 +498,7 @@ async def dodge(initialState, currentGameState, goingFirst, goingLast, attackCal
             await channel.send(f'P2 attempted to dodge, but there was no attack to dodge!')
 # if this is the second action in the round
     else:
+        modifiedGameState = currentGameState
         # if attack caller is p1
         if attackCaller == initialState[0]:
             if (currentGameState[2]<initialState[2]):
@@ -507,7 +510,8 @@ async def dodge(initialState, currentGameState, goingFirst, goingLast, attackCal
 
                 if dodge < dodgeChance:
                     await channel.send(f'P1 dodged P2\'s attack!')
-                    modifiedGameState = initialState
+                    modifiedGameState = currentGameState[:2] + (initialState[2],) + currentGameState[3:]
+                    print(modifiedGameState)
                 else:
                     await channel.send(f'P1 failed to dodge P2\'s attack!')
                     modifiedGameState = currentGameState
@@ -524,7 +528,8 @@ async def dodge(initialState, currentGameState, goingFirst, goingLast, attackCal
 
                 if dodge < dodgeChance:
                     await channel.send(f'P2 dodged P1\'s attack!')
-                    modifiedGameState = initialState
+                    modifiedGameState = currentGameState[:3] + (initialState[3],) + currentGameState[4:]
+                    print(modifiedGameState)
                 else:
                     await channel.send(f'P2 failed to dodge P1\'s attack!')
                     modifiedGameState = currentGameState
@@ -544,21 +549,21 @@ async def snare(initialState, currentGameState, goingFirst, goingLast, attackCal
         # if attack caller is p1
         if attackCaller == initialState[0]: # = P1
             await channel.send(f'P1 snared P2, reducing their SPD to 2!')
-            modifiedGameState = initialState[:8] + (2,) + initialState[9:]
+            modifiedGameState = initialState[:9] + (2,) + initialState[10:]
         # if attack caller is p2
         else:
             await channel.send(f'P2 snared P1, reducing their SPD to 2!')
-            modifiedGameState = initialState[:7] + (2,) + initialState[8:]
+            modifiedGameState = initialState[:8] + (2,) + initialState[9:]
 # if this is the second action in the round
     else:
         # if attack caller is p1
         if attackCaller == initialState[0]:  # = P1
             await channel.send(f'P1 snared P2, reducing their SPD to 2!')
-            modifiedGameState = currentGameState[:8] + (2,) + currentGameState[9:]
+            modifiedGameState = currentGameState[:9] + (2,) + currentGameState[10:]
         # if attack caller is p2
         else:
             await channel.send(f'P2 snared P1, reducing their SPD to 2!')
-            modifiedGameState = currentGameState[:7] + (2,) + currentGameState[8:]
+            modifiedGameState = currentGameState[:8] + (2,) + currentGameState[9:]
 
     return modifiedGameState
 
@@ -596,6 +601,103 @@ async def empower(initialState, currentGameState, goingFirst, goingLast, attackC
         else:
             await channel.send(f'P2 empowered themselves, increasing their ATK!')
             modifiedGameState = currentGameState[:7] + ((currentGameState[7] + p2Boost),) + currentGameState[8:]
+
+    return modifiedGameState
+
+async def heal(initialState, currentGameState, goingFirst, goingLast, attackCaller):
+
+# if this is the first action in the round
+
+    channel = client.get_channel(int(initialState[13]))
+    modifiedGameState = initialState
+
+    cursor.execute(f"""SELECT HP FROM UserInfo WHERE UID = {initialState[0]} """)
+    p1MaxHP = cursor.fetchone()
+
+    cursor.execute(f"""SELECT HP FROM UserInfo WHERE UID = {initialState[1]} """)
+    p2MaxHP = cursor.fetchone()
+
+    if currentGameState == 'first round':
+        # if attack caller is p1
+        if attackCaller == initialState[0]: # = P1
+
+            modifiedGameState = initialState[:2] + ((initialState[2] + initialState[6]),) + initialState[3:]
+
+            if modifiedGameState[2]>p1MaxHP[0]:
+                modifiedGameState = initialState[:2] + (p1MaxHP[0],) + initialState[3:]
+
+            healAmount = modifiedGameState[2] - initialState[2]
+
+            await channel.send(f'P1 healed themselves for {healAmount} HP!')
+
+        # if attack caller is p2
+        else:
+
+            modifiedGameState = initialState[:3] + ((initialState[3] + initialState[7]),) + initialState[4:]
+
+            if modifiedGameState[3]>p2MaxHP[0]:
+                modifiedGameState = initialState[:3] + (p2MaxHP[0],) + initialState[4:]
+
+            healAmount = modifiedGameState[3] - initialState[3]
+
+            await channel.send(f'P2 healed themselves for {healAmount} HP!')
+
+# if this is the second action in the round
+    else:
+        modifiedGameState = currentGameState
+        # if attack caller is p1
+        if attackCaller == initialState[0]:  # = P1
+
+            modifiedGameState = currentGameState[:2] + ((currentGameState[2] + currentGameState[6]),) + currentGameState[3:]
+
+            if modifiedGameState[2]>p1MaxHP[0]:
+                modifiedGameState = currentGameState[:2] + (p1MaxHP[0],) + currentGameState[3:]
+
+            healAmount = modifiedGameState[2] - currentGameState[2]
+
+            await channel.send(f'P1 healed themselves for {healAmount} HP!')
+
+        # if attack caller is p2
+        else:
+
+            modifiedGameState = currentGameState[:3] + ((currentGameState[3] + currentGameState[7]),) + currentGameState[4:]
+
+            if modifiedGameState[3]>p2MaxHP[0]:
+                modifiedGameState = currentGameState[:3] + (p2MaxHP[0],) + currentGameState[4:]
+
+            healAmount = modifiedGameState[3] - currentGameState[3]
+
+            await channel.send(f'P2 healed themselves for {healAmount} HP!')
+
+    return modifiedGameState
+
+async def quick_attack(initialState, currentGameState, goingFirst, goingLast, attackCaller):
+
+# if this is the first action in the round
+
+    channel = client.get_channel(int(initialState[13]))
+
+    if currentGameState == 'first round':
+        # if attack caller is p1
+        if attackCaller == initialState[0]:
+            modifiedGameState = initialState[:3] + ((initialState[3] - (initialState[6]/2)),) + initialState[4:]
+            await channel.send(f'P1 quick attacked P2, dealing {initialState[6]/2} damage.')
+        # if attack caller is p2
+        else:
+            modifiedGameState = initialState[:2] + ((initialState[2] - (initialState[7]/2)),) + initialState[3:]
+            await channel.send(f'P2 quick attacked P1, dealing {initialState[7]/2} damage.')
+# if this is the second action in the round
+    else:
+        # if attack caller is p1
+        if attackCaller == initialState[0]:
+            modifiedGameState = currentGameState[:3] + ((currentGameState[3] - (currentGameState[6]/2)),) + currentGameState[4:]
+            await channel.send(f'P1 quick attacked P2, dealing {initialState[6]/2} damage.')
+        # if attack caller is p2
+        else:
+            modifiedGameState = currentGameState[:2] + ((currentGameState[2] - (currentGameState[7]/2)),) + currentGameState[3:]
+            await channel.send(f'P2 quick attacked P1, dealing {initialState[7]/2} damage.')
+
+    # perform attack on p2 HP if attack caller is p1
 
     return modifiedGameState
 
