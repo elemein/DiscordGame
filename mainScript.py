@@ -293,7 +293,9 @@ async def resolveRound(message):
         "Snare" : snare,
         "Empower" : empower,
         "Heal" : heal,
-        "Quick Attack" : quick_attack
+        "Quick Attack" : quick_attack,
+        "Dull" : dull,
+        "Quicken" : quicken
     }
 
     defensive_abilities = {
@@ -344,7 +346,7 @@ async def resolveRound(message):
                        p1MP = {resolvedGameState[4]+1}, p2MP = {resolvedGameState[5]+1}, 
                        p1ATK = {resolvedGameState[6]}, p2ATK = {resolvedGameState[7]}, 
                        p1SPD = {resolvedGameState[8]}, p2SPD = {resolvedGameState[9]}, 
-                       p1Action = 'None', p2Action = 'None', rndCounter = {resolvedGameState[12]+1} 
+                       p1Action = 'None', p2Action = 'None', rndCounter = {int(resolvedGameState[12])+1} 
                        WHERE (p1UID = {message.author.id}) OR (p2UID = {message.author.id});''')
     connection.commit()
 
@@ -567,6 +569,43 @@ async def snare(initialState, currentGameState, goingFirst, goingLast, attackCal
 
     return modifiedGameState
 
+async def quicken(initialState, currentGameState, goingFirst, goingLast, attackCaller):
+
+# if this is the first action in the round
+
+    channel = client.get_channel(int(initialState[13]))
+    modifiedGameState = initialState
+
+    cursor.execute(f"""SELECT SPD FROM UserInfo WHERE UID = {initialState[0]} """)
+    p1Spd = cursor.fetchone()
+    p1Boost = p1Spd[0]*0.5
+
+    cursor.execute(f"""SELECT SPD FROM UserInfo WHERE UID = {initialState[1]} """)
+    p2Spd = cursor.fetchone()
+    p2Boost = p2Spd[0]*0.5
+
+    if currentGameState == 'first round':
+        # if attack caller is p1
+        if attackCaller == initialState[0]: # = P1
+            await channel.send(f'P1 quickened themselves, increasing their SPD!')
+            modifiedGameState = initialState[:8] + ((initialState[8] + p1Boost),) + initialState[9:]
+        # if attack caller is p2
+        else:
+            await channel.send(f'P2 quickened themselves, increasing their SPD!')
+            modifiedGameState = initialState[:9] + ((initialState[9] + p2Boost),) + initialState[10:]
+# if this is the second action in the round
+    else:
+        # if attack caller is p1
+        if attackCaller == initialState[0]:  # = P1
+            await channel.send(f'P1 quickened themselves, increasing their SPD!')
+            modifiedGameState = currentGameState[:8] + ((currentGameState[8] + p1Boost),) + currentGameState[8:]
+        # if attack caller is p2
+        else:
+            await channel.send(f'P2 quickened themselves, increasing their SPD!')
+            modifiedGameState = currentGameState[:9] + ((currentGameState[9] + p2Boost),) + currentGameState[10:]
+
+    return modifiedGameState
+
 async def empower(initialState, currentGameState, goingFirst, goingLast, attackCaller):
 
 # if this is the first action in the round
@@ -601,6 +640,52 @@ async def empower(initialState, currentGameState, goingFirst, goingLast, attackC
         else:
             await channel.send(f'P2 empowered themselves, increasing their ATK!')
             modifiedGameState = currentGameState[:7] + ((currentGameState[7] + p2Boost),) + currentGameState[8:]
+
+    return modifiedGameState
+
+async def dull(initialState, currentGameState, goingFirst, goingLast, attackCaller):
+
+# if this is the first action in the round
+
+    channel = client.get_channel(int(initialState[13]))
+    modifiedGameState = initialState
+
+    cursor.execute(f"""SELECT ATK FROM UserInfo WHERE UID = {initialState[0]} """)
+    p1Atk = cursor.fetchone()
+    p1Dull = p1Atk[0]*0.5
+
+    cursor.execute(f"""SELECT ATK FROM UserInfo WHERE UID = {initialState[1]} """)
+    p2Atk = cursor.fetchone()
+    p2Dull = p2Atk[0]*0.5
+
+    if currentGameState == 'first round':
+        # if attack caller is p1
+        if attackCaller == initialState[0]: # = P1
+            await channel.send(f'P1 dulled P2, decreasing their ATK!')
+            modifiedGameState = initialState[:7] + ((initialState[7] - p2Dull),) + initialState[8:]
+        # if attack caller is p2
+        else:
+            await channel.send(f'P2 dulled P1, decreasing their ATK!')
+            modifiedGameState = initialState[:6] + ((initialState[6] + p1Dull),) + initialState[7:]
+# if this is the second action in the round
+    else:
+        modifiedGameState = currentGameState
+        # if attack caller is p1
+        if attackCaller == initialState[0]:  # = P1
+            await channel.send(f'P1 dulled P2, decreasing their ATK!')
+            modifiedGameState = currentGameState[:7] + ((currentGameState[7] - p2Dull),) + currentGameState[8:]
+        # if attack caller is p2
+        else:
+            await channel.send(f'P2 dulled P1, decreasing their ATK!')
+            modifiedGameState = currentGameState[:6] + ((currentGameState[6] + p1Dull),) + currentGameState[7:]
+
+    if modifiedGameState[6] < 1:
+        modifiedGameState = modifiedGameState[:6] + (1,) + modifiedGameState[7:]
+        await channel.send(f'P1\'s ATK cannot be lowered below 1!')
+
+    if modifiedGameState[7] < 1:
+        modifiedGameState = modifiedGameState[:7] + (1,) + modifiedGameState[8:]
+        await channel.send(f'P2\'s ATK cannot be lowered below 1!')
 
     return modifiedGameState
 
