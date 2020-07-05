@@ -43,6 +43,28 @@ async def showInfo(message):
 
     return
 
+async def moveList(message):
+    cursor.execute(f"""SELECT * FROM AbilityInfo;""")
+    info = cursor.fetchall()
+    moveList = ""
+
+    #0 = Ability Name, 1 = Description, 2 = Cost, 3 = Priority, 4 = Latent
+
+    for x in info:
+        if x[3] == 0 and x[4] == 0:
+            toJoin = (f'{x[0]} (MP: {x[2]})\n> {x[1]}\n')
+        elif x[3] == 1:
+            toJoin = (f'{x[0]} - (MP: {x[2]}) - PRIORITY\n> {x[1]}\n')
+        elif x[4] == 1:
+            toJoin = (f'{x[0]} - (MP: {x[2]}) - LATENT\n> {x[1]}\n')
+
+        moveList = "\n".join((moveList, toJoin))
+
+    user = client.get_user(message.author.id)
+    await user.send(f'{moveList}')
+
+    return
+
 async def challenge(message):
     # Check if challenge request has more than one person listed.
     if (len(message.mentions) > 1):
@@ -143,16 +165,47 @@ async def roundStart(message):
 
     cursor.execute(f"""SELECT Action1, Action2, Action3, Action4 FROM UserInfo WHERE UID={IDs[0]}""")
     p1Moves = cursor.fetchone()
+    p1MoveInfo = []
 
     cursor.execute(f"""SELECT Action1, Action2, Action3, Action4 FROM UserInfo WHERE UID={IDs[1]}""")
     p2Moves = cursor.fetchone()
+    p2MoveInfo = []
+
+    toJoin = ""
+
+    for x in p1Moves:
+        cursor.execute(f"""SELECT * FROM AbilityInfo WHERE abilityName = '{x}';""")
+        move = cursor.fetchone()
+
+        if (move[3] == 0) and (move[4] == 0):
+            toJoin = (f'{move[0]} (MP: {move[2]})\n> {move[1]}')
+        elif move[3] == 1:
+            toJoin = (f'{move[0]} - (MP: {move[2]}) - PRIORITY\n> {move[1]}')
+        elif move[4] == 1:
+            toJoin = (f'{move[0]} - (MP: {move[2]}) - LATENT\n> {move[1]}')
+
+        p1MoveInfo.append(toJoin)
+
+    for x in p2Moves:
+        cursor.execute(f"""SELECT * FROM AbilityInfo WHERE abilityName = '{x}';""")
+        move = cursor.fetchone()
+
+        if (move[3] == 0) and (move[4] == 0):
+            toJoin = (f'{move[0]} (MP: {move[2]})\n> {move[1]}')
+        elif move[3] == 1:
+            toJoin = (f'{move[0]} - (MP: {move[2]}) - PRIORITY\n> {move[1]}')
+        elif move[4] == 1:
+            toJoin = (f'{move[0]} - (MP: {move[2]}) - LATENT\n> {move[1]}')
+
+        p2MoveInfo.append(toJoin)
+
 
     user = client.get_user(int(IDs[0]))
-    await user.send(f'What will you do this round? \n Your stats are: \n **HP:** {battleInfo[0]} |  **MP:** {battleInfo[1]} \n **ATK:** {battleInfo[2]} | **SPD:** {battleInfo[3]}'
-                    f'\nYour moves are: \n1. {p1Moves[0]}\n2. {p1Moves[1]}\n3. {p1Moves[2]}\n4. {p1Moves[3]}')
+    await user.send(f'What will you do this round? \n *--- STATS ---*\n **HP:** {battleInfo[0]} |  **MP:** {battleInfo[1]} \n **ATK:** {battleInfo[2]} | **SPD:** {battleInfo[3]}'
+                    f'\n*--- MOVES ---*\n**1.** {p1MoveInfo[0]}\n**2.** {p1MoveInfo[1]}\n**3.** {p1MoveInfo[2]}\n**4.** {p1MoveInfo[3]}')
     user = client.get_user(int(IDs[1]))
-    await user.send(f'What will you do this round? \n Your stats are: \n **HP:** {battleInfo[4]} |  **MP:** {battleInfo[5]} \n **ATK:** {battleInfo[6]} | **SPD:** {battleInfo[7]}'
-                    f'\nYour moves are: \n1. {p2Moves[0]}\n2. {p2Moves[1]}\n3. {p2Moves[2]}\n4. {p2Moves[3]}')
+    await user.send(f'What will you do this round? \n *--- STATS ---*\n **HP:** {battleInfo[4]} |  **MP:** {battleInfo[5]} \n **ATK:** {battleInfo[6]} | **SPD:** {battleInfo[7]}'
+                    f'\n*--- MOVES ---*\n**1.** {p2MoveInfo[0]}\n**2.** {p2MoveInfo[1]}\n**3.** {p2MoveInfo[2]}\n**4.** {p2MoveInfo[3]}')
 
     return
 
@@ -308,6 +361,8 @@ async def resolveRound(message):
     gameOver = 0
     channel = client.get_channel(int(initialState[13]))
 
+    await channel.send(f'*--- ROUND {initialState[12]} ---*')
+
     currentGameState = await ability_list.get(goingFirst[1])(initialState, currentGameState, goingFirst, goingLast, goingFirst[0])
 
     # check HPs
@@ -338,7 +393,7 @@ async def resolveRound(message):
     cursor.execute(f'''SELECT HP FROM UserInfo WHERE UID={initialState[1]}''')
     p2maxHP = cursor.fetchone()
 
-    await channel.send(f'Round resolved.\nP1 HP: {(resolvedGameState[2]/p1maxHP[0])*100} %\nP2 HP: {(resolvedGameState[3]/p2maxHP[0])*100} %')
+    await channel.send(f'\nP1 HP: {(resolvedGameState[2]/p1maxHP[0])*100} %\nP2 HP: {(resolvedGameState[3]/p2maxHP[0])*100} %\n--------------------')
 
     # commit round to database
 
@@ -801,7 +856,8 @@ async def on_message(message: object):
             "challenge": challenge,
             "leaveFight": leaveFight,
             "replace": replace,
-            "choose": chooseAttack
+            "choose": chooseAttack,
+            "moveList": moveList
         }
 
         await command_list.get(command, invalid_command)(message)
