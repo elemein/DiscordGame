@@ -393,7 +393,12 @@ async def resolveRound(message):
     cursor.execute(f'''SELECT HP FROM UserInfo WHERE UID={initialState[1]}''')
     p2maxHP = cursor.fetchone()
 
-    await channel.send(f'\nP1 HP: {(resolvedGameState[2]/p1maxHP[0])*100} %\nP2 HP: {(resolvedGameState[3]/p2maxHP[0])*100} %\n--------------------')
+    if p1maxHP[0] == 0:
+        await channel.send(f'\nP1 HP: 0%\nP2 HP: {(resolvedGameState[3] / p2maxHP[0]) * 100} %\n--------------------')
+    elif p2maxHP[0] == 0:
+        await channel.send(f'\nP1 HP: {(resolvedGameState[2] / p1maxHP[0]) * 100} %\nP2 HP: 0%\n--------------------')
+    else:
+        await channel.send(f'\nP1 HP: {(resolvedGameState[2]/p1maxHP[0])*100} %\nP2 HP: {(resolvedGameState[3]/p2maxHP[0])*100} %\n--------------------')
 
     # commit round to database
 
@@ -514,7 +519,7 @@ async def defend(initialState, currentGameState, goingFirst, goingLast, attackCa
 
                 if damageDealt <= 0:
                     await channel.send(f'P1 defended against P2\'s attack, negating all damage.')
-                    modifiedGameState = currentGameState
+                    modifiedGameState = currentGameState[:2] + (initialState[2],) + currentGameState[3:]
                 elif damageDealt > 0:
                     await channel.send(f'P1 defended against P2\'s attack, negating {defendAmount} damage.')
                     modifiedGameState = initialState[:2] + ((initialState[2] - damageDealt),) + initialState[3:]
@@ -530,7 +535,7 @@ async def defend(initialState, currentGameState, goingFirst, goingLast, attackCa
 
                 if damageDealt <= 0:
                     await channel.send(f'P2 defended against P1\'s attack, negating all damage.')
-                    modifiedGameState = currentGameState
+                    modifiedGameState = currentGameState[:3] + (initialState[3],) + currentGameState[4:]
                 elif damageDealt > 0:
                     await channel.send(f'P2 defended against P1\'s attack, negating {defendAmount} damage.')
                     modifiedGameState = initialState[:3] + ((initialState[3] - damageDealt),) + initialState[4:]
