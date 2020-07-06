@@ -10,13 +10,8 @@ connection = sqlite3.connect("myTable.db")
 cursor = connection.cursor()
 client = discord.Client() # connect the bot to discord
 
-
-async def sayhi(message): # Say Hi Command.
-    await message.channel.send('Hi')
-    return
-
-async def invalid_command(message): # Say Hi Command.
-    await message.channel.send('Invalid command.')
+async def invalid_command(message):
+    await message.channel.send('Invalid command. Please use "!d help" for more info on this bot\'s commands.')
     return
 
 async def registerMe(message):
@@ -28,7 +23,7 @@ async def registerMe(message):
         return
     else:
         cursor.execute(f"""INSERT INTO UserInfo (UID, DisplayName, Rating, Challenging, inBattle, HP, ATK, SPD, Action1, Action2, Action3, Action4)
-                           VALUES ('{message.author.id}', '{message.author.name}', 100, 'None', 0, 10,3,5,'None','None','None','None');""")
+                           VALUES ('{message.author.id}', '{message.author.name}', 100, 'None', 0, 10,3,5,'Attack','Heavy Attack','Defend','Dodge');""")
         connection.commit()
         await message.channel.send(f'You\'ve been registered with ID: {message.author.id} and DisplayName: {message.author.name} ')
 
@@ -37,9 +32,34 @@ async def registerMe(message):
 async def showInfo(message):
     cursor.execute(f"""SELECT displayName, Rating, HP, ATK, SPD, Action1, Action2, Action3, Action4 FROM UserInfo WHERE UID={message.author.id}  ;""")
     info = cursor.fetchone()
+    userMoveNames = [info[5], info[6], info[7], info[8]]
 
-    await message.channel.send(f'Here\'s your info:\nName: {info[0]} | Rating: {info[1]}\n---Stats---\n**HP:** {info[2]} | **ATK:** {info[3]} | **SPD:** {info[4]}'
-                               f'\nAbilities:\n1. {info[5]}\n2. {info[6]}\n3. {info[7]}\n4. {info[8]}')
+# --------------------------
+
+    moveList = ''
+    toJoin = ''
+    toFormat = []
+
+    for x in userMoveNames:
+        cursor.execute(f'''SELECT * from AbilityInfo WHERE abilityName = '{x}';''')
+        toFormat.append(cursor.fetchone())
+
+    # 0 = Ability Name, 1 = Description, 2 = Cost, 3 = Priority, 4 = Latent
+
+    for x in toFormat:
+        if x[3] == 0 and x[4] == 0:
+            toJoin = (f'{x[0]} (MP: {x[2]})\n> ^ {x[1]}')
+        elif x[3] == 1:
+            toJoin = (f'{x[0]} - (MP: {x[2]}) - PRIORITY\n> ^ {x[1]}')
+        elif x[4] == 1:
+            toJoin = (f'{x[0]} - (MP: {x[2]}) - LATENT\n> ^ {x[1]}')
+
+        moveList = "\n".join((moveList, toJoin))
+
+# --------------------------
+
+    await message.channel.send(f'Here\'s your info:\nName: {info[0]} | Rating: {info[1]}\n--- Stats ---\n**HP:** {info[2]} | **ATK:** {info[3]} | **SPD:** {info[4]}'
+                               f'\n--- Moves ---{moveList}')
 
     return
 
@@ -52,11 +72,11 @@ async def moveList(message):
 
     for x in info:
         if x[3] == 0 and x[4] == 0:
-            toJoin = (f'{x[0]} (MP: {x[2]})\n> {x[1]}\n')
+            toJoin = (f'{x[0]} (MP: {x[2]})\n> ^ {x[1]}')
         elif x[3] == 1:
-            toJoin = (f'{x[0]} - (MP: {x[2]}) - PRIORITY\n> {x[1]}\n')
+            toJoin = (f'{x[0]} - (MP: {x[2]}) - PRIORITY\n> ^ {x[1]}')
         elif x[4] == 1:
-            toJoin = (f'{x[0]} - (MP: {x[2]}) - LATENT\n> {x[1]}\n')
+            toJoin = (f'{x[0]} - (MP: {x[2]}) - LATENT\n> ^ {x[1]}')
 
         moveList = "\n".join((moveList, toJoin))
 
@@ -220,6 +240,9 @@ async def replace(message):
     print(abilityNames)
     print(replaceRequest)
 
+    cursor.execute(f"""SELECT inBattle FROM UserInfo WHERE UID = {message.author.id}""")
+    inBattle = cursor.fetchone()[0]
+
     if replaceNumber not in range(1,5):
         await message.channel.send('Please specify an ability between 1-4.')
         return
@@ -228,8 +251,14 @@ async def replace(message):
         await message.channel.send('Please specify a valid ability.')
         return
 
+    if inBattle == 1:
+        await message.channel.send('You may not change abilities while in combat.')
+        return
+
     cursor.execute(f"""UPDATE UserInfo SET Action{replaceNumber} = '{replaceRequest}' WHERE (UID={message.author.id});""")
     connection.commit()
+
+    await message.channel.send('Ability successfully replaced.')
 
     return
 
@@ -469,23 +498,23 @@ async def heavy_attack(initialState, currentGameState, goingFirst, goingLast, at
         # if attack caller is p1
         if attackCaller == initialState[0]:
             modifiedGameState = initialState[:3] + ((initialState[3] - (initialState[6] * 2)),) + initialState[4:]
-            await channel.send(f'P1 heavy attacked P2, dealing {(initialState[6] * 2)} damage.')
+            await channel.send(f'P1 heavy attacked P2, dealing {(initialState[6] * 1.5)} damage.')
         # if attack caller is p2
         else:
             modifiedGameState = initialState[:2] + ((initialState[2] - (initialState[7] * 2)),) + initialState[3:]
-            await channel.send(f'P2 heavy attacked P1, dealing {(initialState[7] * 2)} damage.')
+            await channel.send(f'P2 heavy attacked P1, dealing {(initialState[7] * 1.5)} damage.')
     # if this is the second action in the round
     else:
         # if attack caller is p1
         if attackCaller == initialState[0]:
             modifiedGameState = currentGameState[:3] + (
             (currentGameState[3] - (currentGameState[6] * 2)),) + currentGameState[4:]
-            await channel.send(f'P1 heavy attacked P2, dealing {(initialState[6] * 2)} damage.')
+            await channel.send(f'P1 heavy attacked P2, dealing {(initialState[6] * 1.5)} damage.')
         # if attack caller is p2
         else:
             modifiedGameState = currentGameState[:2] + (
             (currentGameState[2] - (currentGameState[7] * 2)),) + currentGameState[3:]
-            await channel.send(f'P2 heavy attacked P1, dealing {(initialState[7] * 2)} damage.')
+            await channel.send(f'P2 heavy attacked P1, dealing {(initialState[7] * 1.5)} damage.')
 
     # perform attack on p2 HP if attack caller is p1
 
@@ -846,7 +875,6 @@ async def quick_attack(initialState, currentGameState, goingFirst, goingLast, at
 
     return modifiedGameState
 
-
 # This function awaits a message, and if the message starts with !d, it proceeds to act on the command.
 @client.event
 async def on_message(message: object):
@@ -855,7 +883,6 @@ async def on_message(message: object):
         command = (message.content.split(' ')[1])
 
         command_list = {
-            "sayhi": sayhi,
             "registerMe": registerMe,
             "showInfo": showInfo,
             "challenge": challenge,
