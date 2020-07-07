@@ -10,14 +10,32 @@ cursor = connection.cursor()
 client = discord.Client() # connect the bot to discord
 
     # ToDo:
-    #   - Clean up UX experience (put names in the player spots in fight dialogue, round HP values)
-    #   - Add ability to change stats
-    #   - add help command and better explanation of the game and commands
     #   - overall improve code
     #   - move to GCP platform
 
 async def invalid_command(message):
     await message.channel.send('Invalid command. Please use "!d help" for more info on this bot\'s commands.')
+    return
+
+async def helpUser(message):
+    user = client.get_user(message.author.id)
+
+    await user.send('This is the Drysduel Bot Help Dialog!\n'
+                    'Drysduel is a turn-based PvP tactical fighting game based around choosing moves to outsmart your opponent!\n\n'
+                    '*----- Gameplay -----*\n'
+                    '- Combat is split into rounds. At round start, each player gains 1 MP which can be used to fuel certain spells. Each player selects a move.\n'
+                    '- Once moves are chosen, the round is resolved. The player with the higher SPD stat moves first, except when priority'
+                    'or latent moves are used (priority moves always go first, latent moves go last) \n'
+                    '- At round end, the HP values are resolved and the next round starts.\n'
+                    '- This continues until someone\'s HP is lowered to 0 or less, then the other player wins!\n\n'
+                    '*----- Commands -----*\n'
+                    '**!d registerMe** - Use this to register yourself in the system. Once done, you\'re ready to fight!\n'
+                    '**!d showInfo** - Shows your info. Displays your stats and moveset.\n'
+                    '**!d challenge @opponent** - Used to initiate fights with others. If two users challenge eachother, a fight begins!\n'
+                    '**!d leaveFight** - Leave any fight you\'re currently in.\n'
+                    '**!d choose x** - Used to choose a move while in combat. Replace x with your move choice; a number between 1 and 4.\n'
+                    '**!d moveList** - Sends you a list of all moves in the game!\n'
+                    '**!d replace moveSlot move** - Used to edit your moveset. Replace "moveSlot" with the ability number you\'d like to replace, and "move" with the name of the ability you\'d like to add.\n')
     return
 
 async def registerMe(message):
@@ -315,9 +333,9 @@ async def chooseAttack(message):
     player2 = client.get_user(int(actionState[2]))
 
     if player == 1:
-        await player2.send(f'Player {player} is ready.')
+        await player2.send(f'{player1.name} is ready.')
     elif player == 2:
-        await player1.send(f'Player {player} is ready.')
+        await player1.send(f'{player2.name} is ready.')
 
     cursor.execute(f"""SELECT p1Action, p2Action FROM BattleInfo WHERE p{player}UID = '{message.author.id}'; """)
     abilityCheck = cursor.fetchone()
@@ -412,13 +430,13 @@ async def resolveRound(message):
 
     # check HPs
     if (currentGameState[2] <= 0) and (goingLast[1] not in defensive_abilities):
-        await player1.send(f'Fight over! P2 is the winner!')
-        await player2.send(f'Fight over! P2 is the winner!')
+        await player1.send(f'Fight over! {player2.name} is the winner!')
+        await player2.send(f'Fight over! {player2.name} is the winner!')
         gameOver = 1
         await endGame(initialState[0], initialState[1])
     elif (currentGameState[3] <=0) and (goingLast[1] not in defensive_abilities):
-        await player1.send(f'Fight over! P1 is the winner!')
-        await player2.send(f'Fight over! P1 is the winner!')
+        await player1.send(f'Fight over! {player1.name} is the winner!')
+        await player2.send(f'Fight over! {player1.name} is the winner!')
         gameOver = 1
         await endGame(initialState[0], initialState[1])
 
@@ -428,13 +446,13 @@ async def resolveRound(message):
         resolvedGameState = await ability_list.get(goingLast[1])(initialState, currentGameState, goingLast[0])
 
         if resolvedGameState[2] <= 0:
-            await player1.send(f'Fight over! P2 is the winner!')
-            await player2.send(f'Fight over! P2 is the winner!')
+            await player1.send(f'Fight over! {player2.name} is the winner!')
+            await player2.send(f'Fight over! {player2.name} is the winner!')
             gameOver = 1
             await endGame(initialState[0], initialState[1])
         elif resolvedGameState[3] <=0:
-            await player1.send(f'Fight over! P1 is the winner!')
-            await player2.send(f'Fight over! P1 is the winner!')
+            await player1.send(f'Fight over! {player1.name} is the winner!')
+            await player2.send(f'Fight over! {player1.name} is the winner!')
             gameOver = 1
             await endGame(initialState[0], initialState[1])
 
@@ -445,14 +463,14 @@ async def resolveRound(message):
     p2maxHP = cursor.fetchone()
 
     if p1maxHP[0] == 0:
-        await player1.send(f'\nP1 HP: 0%\nP2 HP: {(resolvedGameState[3] / p2maxHP[0]) * 100} %\n--------------------')
-        await player2.send(f'\nP1 HP: 0%\nP2 HP: {(resolvedGameState[3] / p2maxHP[0]) * 100} %\n--------------------')
+        await player1.send(f'\n{player1.name} HP: 0%\n{player2.name} HP: {(resolvedGameState[3] / p2maxHP[0]) * 100} %\n--------------------')
+        await player2.send(f'\n{player1.name} HP: 0%\n{player2.name} HP: {(resolvedGameState[3] / p2maxHP[0]) * 100} %\n--------------------')
     elif p2maxHP[0] == 0:
-        await player1.send(f'\nP1 HP: {(resolvedGameState[2] / p1maxHP[0]) * 100} %\nP2 HP: 0%\n--------------------')
-        await player2.send(f'\nP1 HP: {(resolvedGameState[2] / p1maxHP[0]) * 100} %\nP2 HP: 0%\n--------------------')
+        await player1.send(f'\n{player1.name} HP: {round(((resolvedGameState[2] / p1maxHP[0]) * 100),2)} %\n{player2.name} HP: 0%\n--------------------')
+        await player2.send(f'\n{player1.name} HP: {round(((resolvedGameState[2] / p1maxHP[0]) * 100),2)} %\n{player2.name} HP: 0%\n--------------------')
     else:
-        await player1.send(f'\nP1 HP: {(resolvedGameState[2]/p1maxHP[0])*100} %\nP2 HP: {(resolvedGameState[3]/p2maxHP[0])*100} %\n--------------------')
-        await player2.send(f'\nP1 HP: {(resolvedGameState[2]/p1maxHP[0])*100} %\nP2 HP: {(resolvedGameState[3]/p2maxHP[0])*100} %\n--------------------')
+        await player1.send(f'\n{player1.name} HP: {round(((resolvedGameState[2]/p1maxHP[0])*100),2)} %\n{player2.name} HP: {(resolvedGameState[3]/p2maxHP[0])*100} %\n--------------------')
+        await player2.send(f'\n{player1.name} HP: {round(((resolvedGameState[2]/p1maxHP[0])*100),2)} %\n{player2.name} HP: {(resolvedGameState[3]/p2maxHP[0])*100} %\n--------------------')
 
     # commit round to database
 
@@ -495,25 +513,25 @@ async def attack(initialState, currentGameState, attackCaller):
         # if attack caller is p1
         if attackCaller == initialState[0]:
             modifiedGameState = initialState[:3] + ((initialState[3] - initialState[6]),) + initialState[4:]
-            await player1.send(f'P1 attacked P2, dealing {initialState[6]} damage.')
-            await player2.send(f'P1 attacked P2, dealing {initialState[6]} damage.')
+            await player1.send(f'{player1.name} attacked {player2.name}, dealing {initialState[6]} damage.')
+            await player2.send(f'{player1.name} attacked {player2.name}, dealing {initialState[6]} damage.')
         # if attack caller is p2
         else:
             modifiedGameState = initialState[:2] + ((initialState[2] - initialState[7]),) + initialState[3:]
-            await player1.send(f'P2 attacked P1, dealing {initialState[7]} damage.')
-            await player2.send(f'P2 attacked P1, dealing {initialState[7]} damage.')
+            await player1.send(f'{player2.name} attacked {player1.name}, dealing {initialState[7]} damage.')
+            await player2.send(f'{player2.name} attacked {player1.name}, dealing {initialState[7]} damage.')
 # if this is the second action in the round
     else:
         # if attack caller is p1
         if attackCaller == initialState[0]:
             modifiedGameState = currentGameState[:3] + ((currentGameState[3] - currentGameState[6]),) + currentGameState[4:]
-            await player1.send(f'P1 attacked P2, dealing {initialState[6]} damage.')
-            await player2.send(f'P1 attacked P2, dealing {initialState[6]} damage.')
+            await player1.send(f'{player1.name} attacked {player2.name}, dealing {initialState[6]} damage.')
+            await player2.send(f'{player1.name} attacked {player2.name}, dealing {initialState[6]} damage.')
         # if attack caller is p2
         else:
             modifiedGameState = currentGameState[:2] + ((currentGameState[2] - currentGameState[7]),) + currentGameState[3:]
-            await player1.send(f'P2 attacked P1, dealing {initialState[7]} damage.')
-            await player2.send(f'P2 attacked P1, dealing {initialState[7]} damage.')
+            await player1.send(f'{player2.name} attacked {player1.name}, dealing {initialState[7]} damage.')
+            await player2.send(f'{player2.name} attacked {player1.name}, dealing {initialState[7]} damage.')
 
     return modifiedGameState
 
@@ -527,27 +545,27 @@ async def heavy_attack(initialState, currentGameState, attackCaller):
         # if attack caller is p1
         if attackCaller == initialState[0]:
             modifiedGameState = initialState[:3] + ((initialState[3] - (initialState[6] * 1.5)),) + initialState[4:]
-            await player1.send(f'P1 heavy attacked P2, dealing {(initialState[6] * 1.5)} damage.')
-            await player2.send(f'P1 heavy attacked P2, dealing {(initialState[6] * 1.5)} damage.')
+            await player1.send(f'{player1.name} heavy attacked {player2.name}, dealing {(initialState[6] * 1.5)} damage.')
+            await player2.send(f'{player1.name} heavy attacked {player2.name}, dealing {(initialState[6] * 1.5)} damage.')
         # if attack caller is p2
         else:
             modifiedGameState = initialState[:2] + ((initialState[2] - (initialState[7] * 1.5)),) + initialState[3:]
-            await player1.send(f'P2 heavy attacked P1, dealing {(initialState[7] * 1.5)} damage.')
-            await player2.send(f'P2 heavy attacked P1, dealing {(initialState[7] * 1.5)} damage.')
+            await player1.send(f'{player2.name} heavy attacked {player1.name}, dealing {(initialState[7] * 1.5)} damage.')
+            await player2.send(f'{player2.name} heavy attacked {player1.name}, dealing {(initialState[7] * 1.5)} damage.')
     # if this is the second action in the round
     else:
         # if attack caller is p1
         if attackCaller == initialState[0]:
             modifiedGameState = currentGameState[:3] + (
             (currentGameState[3] - (currentGameState[6] * 2)),) + currentGameState[4:]
-            await player1.send(f'P1 heavy attacked P2, dealing {(initialState[6] * 1.5)} damage.')
-            await player2.send(f'P1 heavy attacked P2, dealing {(initialState[6] * 1.5)} damage.')
+            await player1.send(f'{player1.name} heavy attacked {player2.name}, dealing {(initialState[6] * 1.5)} damage.')
+            await player2.send(f'{player1.name} heavy attacked {player2.name}, dealing {(initialState[6] * 1.5)} damage.')
         # if attack caller is p2
         else:
             modifiedGameState = currentGameState[:2] + (
             (currentGameState[2] - (currentGameState[7] * 2)),) + currentGameState[3:]
-            await player1.send(f'P2 heavy attacked P1, dealing {(initialState[7] * 1.5)} damage.')
-            await player2.send(f'P2 heavy attacked P1, dealing {(initialState[7] * 1.5)} damage.')
+            await player1.send(f'{player2.name} heavy attacked {player1.name}, dealing {(initialState[7] * 1.5)} damage.')
+            await player2.send(f'{player2.name} heavy attacked {player1.name}, dealing {(initialState[7] * 1.5)} damage.')
 
     # perform attack on p2 HP if attack caller is p1
 
@@ -564,12 +582,12 @@ async def defend(initialState, currentGameState, attackCaller):
     if currentGameState == 'first round':
         # if attack caller is p1
         if attackCaller == initialState[0]:
-            await player1.send(f'P1 attempted to defend, but there was no attack to defend against!')
-            await player2.send(f'P1 attempted to defend, but there was no attack to defend against!')
+            await player1.send(f'{player1.name} attempted to defend, but there was no attack to defend against!')
+            await player2.send(f'{player1.name} attempted to defend, but there was no attack to defend against!')
         # if attack caller is p2
         else:
-            await player1.send(f'P2 attempted to defend, but there was no attack to defend against!')
-            await player2.send(f'P2 attempted to defend, but there was no attack to defend against!')
+            await player1.send(f'{player2.name} attempted to defend, but there was no attack to defend against!')
+            await player2.send(f'{player2.name} attempted to defend, but there was no attack to defend against!')
 # if this is the second action in the round
     else:
         modifiedGameState = currentGameState
@@ -583,16 +601,16 @@ async def defend(initialState, currentGameState, attackCaller):
                 damageDealt = damageDealt-defendAmount # Lower damage dealt by defend amount.
 
                 if damageDealt <= 0:
-                    await player1.send(f'P1 defended against P2\'s attack, negating all damage.')
-                    await player2.send(f'P1 defended against P2\'s attack, negating all damage.')
+                    await player1.send(f'{player1.name} defended against {player2.name}\'s attack, negating all damage.')
+                    await player2.send(f'{player1.name} defended against {player2.name}\'s attack, negating all damage.')
                     modifiedGameState = currentGameState[:2] + (initialState[2],) + currentGameState[3:]
                 elif damageDealt > 0:
-                    await player1.send(f'P1 defended against P2\'s attack, negating {defendAmount} damage.')
-                    await player2.send(f'P1 defended against P2\'s attack, negating {defendAmount} damage.')
+                    await player1.send(f'{player1.name} defended against {player2.name}\'s attack, negating {defendAmount} damage.')
+                    await player2.send(f'{player1.name} defended against {player2.name}\'s attack, negating {defendAmount} damage.')
                     modifiedGameState = initialState[:2] + ((initialState[2] - damageDealt),) + initialState[3:]
             else:
-                await player1.send(f'P1 attempted to defend, but there was no attack to defend against!')
-                await player2.send(f'P1 attempted to defend, but there was no attack to defend against!')
+                await player1.send(f'{player1.name} attempted to defend, but there was no attack to defend against!')
+                await player2.send(f'{player1.name} attempted to defend, but there was no attack to defend against!')
         # if attack caller is p2
         else:
             if (currentGameState[3] < initialState[3]):
@@ -602,16 +620,16 @@ async def defend(initialState, currentGameState, attackCaller):
                 damageDealt = damageDealt - defendAmount  # Lower damage dealt by defend amount.
 
                 if damageDealt <= 0:
-                    await player1.send(f'P2 defended against P1\'s attack, negating all damage.')
-                    await player2.send(f'P2 defended against P1\'s attack, negating all damage.')
+                    await player1.send(f'{player2.name} defended against {player1.name}\'s attack, negating all damage.')
+                    await player2.send(f'{player2.name} defended against {player1.name}\'s attack, negating all damage.')
                     modifiedGameState = currentGameState[:3] + (initialState[3],) + currentGameState[4:]
                 elif damageDealt > 0:
-                    await player1.send(f'P2 defended against P1\'s attack, negating {defendAmount} damage.')
-                    await player2.send(f'P2 defended against P1\'s attack, negating {defendAmount} damage.')
+                    await player1.send(f'{player2.name} defended against {player1.name}\'s attack, negating {defendAmount} damage.')
+                    await player2.send(f'{player2.name} defended against {player1.name}\'s attack, negating {defendAmount} damage.')
                     modifiedGameState = initialState[:3] + ((initialState[3] - damageDealt),) + initialState[4:]
             else:
-                await player1.send(f'P2 attempted to defend, but there was no attack to defend against!')
-                await player2.send(f'P2 attempted to defend, but there was no attack to defend against!')
+                await player1.send(f'{player2.name} attempted to defend, but there was no attack to defend against!')
+                await player2.send(f'{player2.name} attempted to defend, but there was no attack to defend against!')
 
     return modifiedGameState
 
@@ -626,12 +644,12 @@ async def dodge(initialState, currentGameState, attackCaller):
     if currentGameState == 'first round':
         # if attack caller is p1
         if attackCaller == initialState[0]:
-            await player1.send(f'P1 attempted to dodge, but there was no attack to dodge!')
-            await player2.send(f'P1 attempted to dodge, but there was no attack to dodge!')
+            await player1.send(f'{player1.name} attempted to dodge, but there was no attack to dodge!')
+            await player2.send(f'{player1.name} attempted to dodge, but there was no attack to dodge!')
         # if attack caller is p2
         else:
-            await player1.send(f'P2 attempted to dodge, but there was no attack to dodge!')
-            await player2.send(f'P2 attempted to dodge, but there was no attack to dodge!')
+            await player1.send(f'{player2.name} attempted to dodge, but there was no attack to dodge!')
+            await player2.send(f'{player2.name} attempted to dodge, but there was no attack to dodge!')
 # if this is the second action in the round
     else:
         modifiedGameState = currentGameState
@@ -645,18 +663,18 @@ async def dodge(initialState, currentGameState, attackCaller):
                 dodge = random.randint(0,100)
 
                 if dodge < dodgeChance:
-                    await player1.send(f'P1 dodged P2\'s attack!')
-                    await player2.send(f'P1 dodged P2\'s attack!')
+                    await player1.send(f'{player1.name} dodged {player2.name}\'s attack!')
+                    await player2.send(f'{player1.name} dodged {player2.name}\'s attack!')
                     modifiedGameState = currentGameState[:2] + (initialState[2],) + currentGameState[3:]
                     print(modifiedGameState)
                 else:
-                    await player1.send(f'P1 failed to dodge P2\'s attack!')
-                    await player2.send(f'P1 failed to dodge P2\'s attack!')
+                    await player1.send(f'{player1.name} failed to dodge {player2.name}\'s attack!')
+                    await player2.send(f'{player1.name} failed to dodge {player2.name}\'s attack!')
                     modifiedGameState = currentGameState
 
             else:
-                await player1.send(f'P1 attempted to dodge, but there was no attack to dodge!')
-                await player2.send(f'P1 attempted to dodge, but there was no attack to dodge!')
+                await player1.send(f'{player1.name} attempted to dodge, but there was no attack to dodge!')
+                await player2.send(f'{player1.name} attempted to dodge, but there was no attack to dodge!')
         # if attack caller is p2
         else:
             if (currentGameState[3] < initialState[3]):
@@ -666,17 +684,17 @@ async def dodge(initialState, currentGameState, attackCaller):
                 dodge = random.randint(0, 100)
 
                 if dodge < dodgeChance:
-                    await player1.send(f'P2 dodged P1\'s attack!')
-                    await player2.send(f'P2 dodged P1\'s attack!')
+                    await player1.send(f'{player2.name} dodged {player1.name}\'s attack!')
+                    await player2.send(f'{player2.name} dodged {player1.name}\'s attack!')
                     modifiedGameState = currentGameState[:3] + (initialState[3],) + currentGameState[4:]
                     print(modifiedGameState)
                 else:
-                    await player1.send(f'P2 failed to dodge P1\'s attack!')
-                    await player2.send(f'P2 failed to dodge P1\'s attack!')
+                    await player1.send(f'{player2.name} failed to dodge {player1.name}\'s attack!')
+                    await player2.send(f'{player2.name} failed to dodge {player1.name}\'s attack!')
                     modifiedGameState = currentGameState
             else:
-                await player1.send(f'P2 attempted to dodge, but there was no attack to dodge!')
-                await player2.send(f'P2 attempted to dodge, but there was no attack to dodge!')
+                await player1.send(f'{player2.name} attempted to dodge, but there was no attack to dodge!')
+                await player2.send(f'{player2.name} attempted to dodge, but there was no attack to dodge!')
 
     return modifiedGameState
 
@@ -691,25 +709,25 @@ async def snare(initialState, currentGameState, attackCaller):
     if currentGameState == 'first round':
         # if attack caller is p1
         if attackCaller == initialState[0]: # = P1
-            await player1.send(f'P1 snared P2, reducing their SPD to 2!')
-            await player2.send(f'P1 snared P2, reducing their SPD to 2!')
+            await player1.send(f'{player1.name} snared {player2.name}, reducing their SPD to 2!')
+            await player2.send(f'{player1.name} snared {player2.name}, reducing their SPD to 2!')
             modifiedGameState = initialState[:9] + (2,) + initialState[10:]
         # if attack caller is p2
         else:
-            await player1.send(f'P2 snared P1, reducing their SPD to 2!')
-            await player2.send(f'P2 snared P1, reducing their SPD to 2!')
+            await player1.send(f'{player2.name} snared {player1.name}, reducing their SPD to 2!')
+            await player2.send(f'{player2.name} snared {player1.name}, reducing their SPD to 2!')
             modifiedGameState = initialState[:8] + (2,) + initialState[9:]
 # if this is the second action in the round
     else:
         # if attack caller is p1
         if attackCaller == initialState[0]:  # = P1
-            await player1.send(f'P1 snared P2, reducing their SPD to 2!')
-            await player2.send(f'P1 snared P2, reducing their SPD to 2!')
+            await player1.send(f'{player1.name} snared {player2.name}, reducing their SPD to 2!')
+            await player2.send(f'{player1.name} snared {player2.name}, reducing their SPD to 2!')
             modifiedGameState = currentGameState[:9] + (2,) + currentGameState[10:]
         # if attack caller is p2
         else:
-            await player1.send(f'P2 snared P1, reducing their SPD to 2!')
-            await player2.send(f'P2 snared P1, reducing their SPD to 2!')
+            await player1.send(f'{player2.name} snared {player1.name}, reducing their SPD to 2!')
+            await player2.send(f'{player2.name} snared {player1.name}, reducing their SPD to 2!')
             modifiedGameState = currentGameState[:8] + (2,) + currentGameState[9:]
 
     return modifiedGameState
@@ -733,25 +751,25 @@ async def quicken(initialState, currentGameState, attackCaller):
     if currentGameState == 'first round':
         # if attack caller is p1
         if attackCaller == initialState[0]: # = P1
-            await player1.send(f'P1 quickened themselves, increasing their SPD!')
-            await player2.send(f'P1 quickened themselves, increasing their SPD!')
+            await player1.send(f'{player1.name} quickened themselves, increasing their SPD!')
+            await player2.send(f'{player1.name} quickened themselves, increasing their SPD!')
             modifiedGameState = initialState[:8] + ((initialState[8] + p1Boost),) + initialState[9:]
         # if attack caller is p2
         else:
-            await player1.send(f'P2 quickened themselves, increasing their SPD!')
-            await player2.send(f'P2 quickened themselves, increasing their SPD!')
+            await player1.send(f'{player2.name} quickened themselves, increasing their SPD!')
+            await player2.send(f'{player2.name} quickened themselves, increasing their SPD!')
             modifiedGameState = initialState[:9] + ((initialState[9] + p2Boost),) + initialState[10:]
 # if this is the second action in the round
     else:
         # if attack caller is p1
         if attackCaller == initialState[0]:  # = P1
-            await player1.send(f'P1 quickened themselves, increasing their SPD!')
-            await player2.send(f'P1 quickened themselves, increasing their SPD!')
+            await player1.send(f'{player1.name} quickened themselves, increasing their SPD!')
+            await player2.send(f'{player1.name} quickened themselves, increasing their SPD!')
             modifiedGameState = currentGameState[:8] + ((currentGameState[8] + p1Boost),) + currentGameState[8:]
         # if attack caller is p2
         else:
-            await player1.send(f'P2 quickened themselves, increasing their SPD!')
-            await player2.send(f'P2 quickened themselves, increasing their SPD!')
+            await player1.send(f'{player2.name} quickened themselves, increasing their SPD!')
+            await player2.send(f'{player2.name} quickened themselves, increasing their SPD!')
             modifiedGameState = currentGameState[:9] + ((currentGameState[9] + p2Boost),) + currentGameState[10:]
 
     return modifiedGameState
@@ -775,25 +793,25 @@ async def empower(initialState, currentGameState, attackCaller):
     if currentGameState == 'first round':
         # if attack caller is p1
         if attackCaller == initialState[0]: # = P1
-            await player1.send(f'P1 empowered themselves, increasing their ATK!')
-            await player2.send(f'P1 empowered themselves, increasing their ATK!')
+            await player1.send(f'{player1.name} empowered themselves, increasing their ATK!')
+            await player2.send(f'{player1.name} empowered themselves, increasing their ATK!')
             modifiedGameState = initialState[:6] + ((initialState[6] + p1Boost),) + initialState[7:]
         # if attack caller is p2
         else:
-            await player1.send(f'P2 empowered themselves, increasing their ATK!')
-            await player2.send(f'P2 empowered themselves, increasing their ATK!')
+            await player1.send(f'{player2.name} empowered themselves, increasing their ATK!')
+            await player2.send(f'{player2.name} empowered themselves, increasing their ATK!')
             modifiedGameState = initialState[:7] + ((initialState[7] + p2Boost),) + initialState[8:]
 # if this is the second action in the round
     else:
         # if attack caller is p1
         if attackCaller == initialState[0]:  # = P1
-            await player1.send(f'P1 empowered themselves, increasing their ATK!')
-            await player2.send(f'P1 empowered themselves, increasing their ATK!')
+            await player1.send(f'{player1.name} empowered themselves, increasing their ATK!')
+            await player2.send(f'{player1.name} empowered themselves, increasing their ATK!')
             modifiedGameState = currentGameState[:6] + ((currentGameState[6] + p1Boost),) + currentGameState[7:]
         # if attack caller is p2
         else:
-            await player1.send(f'P2 empowered themselves, increasing their ATK!')
-            await player2.send(f'P2 empowered themselves, increasing their ATK!')
+            await player1.send(f'{player2.name} empowered themselves, increasing their ATK!')
+            await player2.send(f'{player2.name} empowered themselves, increasing their ATK!')
             modifiedGameState = currentGameState[:7] + ((currentGameState[7] + p2Boost),) + currentGameState[8:]
 
     return modifiedGameState
@@ -817,37 +835,37 @@ async def dull(initialState, currentGameState, attackCaller):
     if currentGameState == 'first round':
         # if attack caller is p1
         if attackCaller == initialState[0]: # = P1
-            await player1.send(f'P1 dulled P2, decreasing their ATK!')
-            await player2.send(f'P1 dulled P2, decreasing their ATK!')
+            await player1.send(f'{player1.name} dulled {player2.name}, decreasing their ATK!')
+            await player2.send(f'{player1.name} dulled {player2.name}, decreasing their ATK!')
             modifiedGameState = initialState[:7] + ((initialState[7] - p2Dull),) + initialState[8:]
         # if attack caller is p2
         else:
-            await player1.send(f'P2 dulled P1, decreasing their ATK!')
-            await player2.send(f'P2 dulled P1, decreasing their ATK!')
+            await player1.send(f'{player2.name} dulled {player1.name}, decreasing their ATK!')
+            await player2.send(f'{player2.name} dulled {player1.name}, decreasing their ATK!')
             modifiedGameState = initialState[:6] + ((initialState[6] + p1Dull),) + initialState[7:]
 # if this is the second action in the round
     else:
         modifiedGameState = currentGameState
         # if attack caller is p1
         if attackCaller == initialState[0]:  # = P1
-            await player1.send(f'P1 dulled P2, decreasing their ATK!')
-            await player2.send(f'P1 dulled P2, decreasing their ATK!')
+            await player1.send(f'{player1.name} dulled {player2.name}, decreasing their ATK!')
+            await player2.send(f'{player1.name} dulled {player2.name}, decreasing their ATK!')
             modifiedGameState = currentGameState[:7] + ((currentGameState[7] - p2Dull),) + currentGameState[8:]
         # if attack caller is p2
         else:
-            await player1.send(f'P2 dulled P1, decreasing their ATK!')
-            await player2.send(f'P2 dulled P1, decreasing their ATK!')
+            await player1.send(f'{player2.name} dulled {player1.name}, decreasing their ATK!')
+            await player2.send(f'{player2.name} dulled {player1.name}, decreasing their ATK!')
             modifiedGameState = currentGameState[:6] + ((currentGameState[6] + p1Dull),) + currentGameState[7:]
 
     if modifiedGameState[6] < 1:
         modifiedGameState = modifiedGameState[:6] + (1,) + modifiedGameState[7:]
-        await player1.send(f'P1\'s ATK cannot be lowered below 1!')
-        await player2.send(f'P1\'s ATK cannot be lowered below 1!')
+        await player1.send(f'{player1.name}\'s ATK cannot be lowered below 1!')
+        await player2.send(f'{player1.name}\'s ATK cannot be lowered below 1!')
 
     if modifiedGameState[7] < 1:
         modifiedGameState = modifiedGameState[:7] + (1,) + modifiedGameState[8:]
-        await player1.send(f'P2\'s ATK cannot be lowered below 1!')
-        await player2.send(f'P2\'s ATK cannot be lowered below 1!')
+        await player1.send(f'{player2.name}\'s ATK cannot be lowered below 1!')
+        await player2.send(f'{player2.name}\'s ATK cannot be lowered below 1!')
 
     return modifiedGameState
 
@@ -876,8 +894,8 @@ async def heal(initialState, currentGameState, attackCaller):
 
             healAmount = modifiedGameState[2] - initialState[2]
 
-            await player1.send(f'P1 healed themselves for {healAmount} HP!')
-            await player2.send(f'P1 healed themselves for {healAmount} HP!')
+            await player1.send(f'{player1.name} healed themselves for {healAmount} HP!')
+            await player2.send(f'{player1.name} healed themselves for {healAmount} HP!')
 
         # if attack caller is p2
         else:
@@ -889,8 +907,8 @@ async def heal(initialState, currentGameState, attackCaller):
 
             healAmount = modifiedGameState[3] - initialState[3]
 
-            await player1.send(f'P2 healed themselves for {healAmount} HP!')
-            await player2.send(f'P2 healed themselves for {healAmount} HP!')
+            await player1.send(f'{player2.name} healed themselves for {healAmount} HP!')
+            await player2.send(f'{player2.name} healed themselves for {healAmount} HP!')
 
 # if this is the second action in the round
     else:
@@ -905,8 +923,8 @@ async def heal(initialState, currentGameState, attackCaller):
 
             healAmount = modifiedGameState[2] - currentGameState[2]
 
-            await player1.send(f'P1 healed themselves for {healAmount} HP!')
-            await player2.send(f'P1 healed themselves for {healAmount} HP!')
+            await player1.send(f'{player1.name} healed themselves for {healAmount} HP!')
+            await player2.send(f'{player1.name} healed themselves for {healAmount} HP!')
 
         # if attack caller is p2
         else:
@@ -918,8 +936,8 @@ async def heal(initialState, currentGameState, attackCaller):
 
             healAmount = modifiedGameState[3] - currentGameState[3]
 
-            await player1.send(f'P2 healed themselves for {healAmount} HP!')
-            await player2.send(f'P2 healed themselves for {healAmount} HP!')
+            await player1.send(f'{player2.name} healed themselves for {healAmount} HP!')
+            await player2.send(f'{player2.name} healed themselves for {healAmount} HP!')
 
     return modifiedGameState
 
@@ -934,25 +952,25 @@ async def quick_attack(initialState, currentGameState, attackCaller):
         # if attack caller is p1
         if attackCaller == initialState[0]:
             modifiedGameState = initialState[:3] + ((initialState[3] - (initialState[6]/2)),) + initialState[4:]
-            await player1.send(f'P1 quick attacked P2, dealing {initialState[6]/2} damage.')
-            await player2.send(f'P1 quick attacked P2, dealing {initialState[6]/2} damage.')
+            await player1.send(f'{player1.name} quick attacked {player2.name}, dealing {initialState[6]/2} damage.')
+            await player2.send(f'{player1.name} quick attacked {player2.name}, dealing {initialState[6]/2} damage.')
         # if attack caller is p2
         else:
             modifiedGameState = initialState[:2] + ((initialState[2] - (initialState[7]/2)),) + initialState[3:]
-            await player1.send(f'P2 quick attacked P1, dealing {initialState[7]/2} damage.')
-            await player2.send(f'P2 quick attacked P1, dealing {initialState[7]/2} damage.')
+            await player1.send(f'{player2.name} quick attacked {player1.name}, dealing {initialState[7]/2} damage.')
+            await player2.send(f'{player2.name} quick attacked {player1.name}, dealing {initialState[7]/2} damage.')
 # if this is the second action in the round
     else:
         # if attack caller is p1
         if attackCaller == initialState[0]:
             modifiedGameState = currentGameState[:3] + ((currentGameState[3] - (currentGameState[6]/2)),) + currentGameState[4:]
-            await player1.send(f'P1 quick attacked P2, dealing {initialState[6]/2} damage.')
-            await player2.send(f'P1 quick attacked P2, dealing {initialState[6]/2} damage.')
+            await player1.send(f'{player1.name} quick attacked {player2.name}, dealing {initialState[6]/2} damage.')
+            await player2.send(f'{player1.name} quick attacked {player2.name}, dealing {initialState[6]/2} damage.')
         # if attack caller is p2
         else:
             modifiedGameState = currentGameState[:2] + ((currentGameState[2] - (currentGameState[7]/2)),) + currentGameState[3:]
-            await player1.send(f'P2 quick attacked P1, dealing {initialState[7]/2} damage.')
-            await player2.send(f'P2 quick attacked P1, dealing {initialState[7]/2} damage.')
+            await player1.send(f'{player2.name} quick attacked {player1.name}, dealing {initialState[7]/2} damage.')
+            await player2.send(f'{player2.name} quick attacked {player1.name}, dealing {initialState[7]/2} damage.')
 
     # perform attack on p2 HP if attack caller is p1
 
@@ -972,7 +990,8 @@ async def on_message(message: object):
             "leaveFight": leaveFight,
             "replace": replace,
             "choose": chooseAttack,
-            "moveList": moveList
+            "moveList": moveList,
+            "help": helpUser
         }
 
         await command_list.get(command, invalid_command)(message)
